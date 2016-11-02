@@ -1,0 +1,223 @@
+<!DOCTYPE HTML>
+<html>
+<head>
+    <title>Daily Budget</title>
+    <meta charset='utf-8'>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="theme-color" content="#999999" />
+    <meta name="msapplication-TileColor" content="#999999">
+    <meta property="og:image" content="/icon.png"/>
+    <link rel="image_src" href="/icon.png" />
+    <link rel="shortcut icon" sizes="196x196" href="/icon.png" />
+    <link rel="shortcut icon" sizes="128x128" href="/icon.png" />
+    <link href="/icon.png" rel="apple-touch-icon" />
+    <link href="/icon.png" rel="apple-touch-icon" sizes="120x120" />
+    <link href="/icon.png" rel="apple-touch-icon" sizes="152x152" />
+    <meta name="msapplication-square150x150logo" content="/icon.png" />
+
+    <style>
+        *, *:before, *:after {
+            box-sizing: border-box;
+        }
+
+        html{
+            height: 100%;
+            -webkit-font-smoothing: antialiased;
+            background: linear-gradient(to bottom, #eee 0%,#bbb 100%) fixed; /* W3C */
+        }
+        body {
+            min-height: 100%;
+            padding: 0;
+            margin: 0;
+            font-weight: lighter;
+            font-family: 'Roboto', 'Segoe UI', "HelveticaNeue-Light", "Helvetica Neue Light", "Helvetica Neue", sans-serif-thin, sans-serif;
+        }
+        .banner {
+            display: block;
+            background: #111;
+            color: #fff;
+            padding: 4px;
+            text-align: center;
+            text-transform: uppercase;
+        }
+        .limit {
+            max-width: 976px;
+            margin-left: auto;
+            margin-right: auto;
+        }
+        .days-wrapper {
+        }
+        .days {
+            overflow-x: auto;
+            white-space: nowrap;
+            list-style: none;
+            margin: 0;
+            padding: 0;
+            text-align: center;
+            margin-top: 16px;
+        }
+        .days__item {
+            white-space: normal;
+            display: inline-block;
+        }
+        .days__day {
+            font-size: 1.6rem;
+            padding: 4px 16px;
+            background: none;
+            border: 0;
+            min-width: 42px;
+        }
+        .days__day:hover,
+        .days__day:hover {
+            background: #ccc;
+            cursor: pointer;
+        }
+        .days__day--selected,
+        .days__day:focus {
+            background: #999;
+        }
+
+        .status {
+            padding: 16px;
+            background: #666;
+            color: #fff;
+        }
+        .status--ok {
+            background: #106741;
+        }
+        .status--danger {
+            background: #671519;
+        }
+        .status__value {
+            text-align: right;
+            font-size: 3rem;
+            line-height: 1;
+        }
+        .settings {
+            background: #555;
+            color: #fff;
+            padding: 16px;
+        }
+        h1, h2 {
+            margin: 0;
+            font-weight: lighter;
+        }
+    </style>
+</head>
+<body>
+<div class="banner">Hammerspace Homescreen Toolkit - Daily Budget</div>
+
+<div id="js-settings" class="settings">
+    <div class="limit">
+        <h2>Settings</h2>
+        <p class="settings__setting"><label>Monthly budget: <input type="number" id="js-budget" /></label></p>
+        <p class="settings__setting">
+            <label>Currency Symbol: <input type="text" id="js-symbol" value="£" /></label>
+            <button>£</button>
+            <button>$</button>
+            <button>€</button>
+        </p>
+        <p class="settings__setting"><label>Day to reset: <select id="js-reset-day">
+            <option value="1">1st</option>
+            <option value="2">2nd</option>
+            <option value="3">3rd</option>
+            <option value="4">4th</option>
+            <option value="5">5th</option>
+            <option value="6">6th</option>
+            <option value="7">7th</option>
+            <option value="8">8th</option>
+            <option value="9">9th</option>
+            <option value="10">10th</option>
+            <option value="11">11th</option>
+            <option value="12">12th</option>
+            <option value="13">13th</option>
+            <option value="14">14th</option>
+            <option value="15">15th</option>
+            <option value="16">16th</option>
+            <option value="17">17th</option>
+            <option value="18">18th</option>
+            <option value="19">19th</option>
+            <option value="20">20th</option>
+            <option value="21">21st</option>
+            <option value="22">22nd</option>
+            <option value="23">23rd</option>
+            <option value="24">24th</option>
+            <option value="25">25th</option>
+            <option value="26">26th</option>
+            <option value="27">27th</option>
+            <option value="28">28th</option>
+            <option value="last">Last day</option>
+        </select></label></p>
+        <p class="settings__intro">
+            This is a bit of help text. The settings panel will be closed once values are set the first time
+        </p>
+    </div>
+</div>
+
+<div id="js-days" class="days-wrapper"></div>
+
+<div id="js-status" class="status">
+    <div class="limit">
+        <div id="js-summary" class="status__value"></div>
+    </div>
+</div>
+
+<script>
+(function() {
+    var daysInMonth = function(month, year) {
+        return new Date(year, month, 0).getDate();
+    },
+        today = new Date(),
+        currentDay = today.getDate(),
+        daysThisMonth = daysInMonth(today.getMonth() + 1, today.getFullYear()),
+        daysBar = document.getElementById('js-days'),
+        status = document.getElementById('js-status'),
+        statusValue = document.getElementById('js-summary'),
+
+        daysItems = '',
+        currencySymbol = '£',
+        monthlyBudget = 930, // todo - come from settings
+        averageDailyBudget = monthlyBudget / daysThisMonth,
+        budgetLeft = monthlyBudget,
+        daysLeft = daysThisMonth - (currentDay - 1),
+        dailyBudgetLeft,
+        budgetLeftToday,
+        dailySpends = [
+                0,
+                0,
+                33
+        ],
+
+        i, d, s, c;
+
+    for (i = 1; i <= daysThisMonth; i++) {
+        if (i < currentDay) {
+            if (dailySpends[i]) {
+                budgetLeft = budgetLeft - dailySpends[i];
+            }
+        }
+
+        d = (i == currentDay) ? 'Today' : i;
+        s = (i == currentDay) ? 'days__day--selected' : '';
+        daysItems += '<li class="days__item"><button class="button js-day days__day ' + s + '" data-day="' + i + '">' + d + '</button></li>';
+    }
+    dailyBudgetLeft = budgetLeft / daysLeft;
+    budgetLeftToday = dailyBudgetLeft;
+    if (dailySpends[currentDay]) {
+        budgetLeftToday = budgetLeftToday - dailySpends[currentDay];
+    }
+    status.classList.remove('status--ok', 'status--danger');
+    c = 'status--ok';
+    if (budgetLeftToday < 0) {
+        c = 'status--danger';
+    }
+
+    status.classList.add(c);
+    daysBar.innerHTML = '<ul class="days">' + daysItems + '</ul>';
+
+    statusValue.innerHTML = budgetLeftToday.toLocaleString('en', {currency:'GBP', style: 'currency'});
+
+})();
+</script>
+</body>
+</html>
