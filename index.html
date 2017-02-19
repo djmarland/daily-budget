@@ -98,24 +98,36 @@
             color: #fff;
             padding: 16px;
         }
-        h1, h2 {
+        h1, h2, p {
             margin: 0;
             font-weight: lighter;
+        }
+        .hidden {
+            display: none;
+        }
+        .text--right {
+            text-align: right;
         }
     </style>
 </head>
 <body>
 <div class="banner">Hammerspace Homescreen Toolkit - Daily Budget</div>
 
+<div id="app"></div>
+<!-- built files will be auto injected -->
+</body>
+
+
 <div id="js-settings" class="settings">
+    <p class="text--right"><button id="js-settings-close">X</button></p>
     <div class="limit">
         <h2>Settings</h2>
         <p class="settings__setting"><label>Monthly budget: <input type="number" id="js-budget" /></label></p>
         <p class="settings__setting">
             <label>Currency Symbol: <input type="text" id="js-symbol" value="£" /></label>
-            <button>£</button>
-            <button>$</button>
-            <button>€</button>
+            <button data-currency="£">£</button>
+            <button data-currency="$">$</button>
+            <button data-currency="€">€</button>
         </p>
         <p class="settings__setting"><label>Day to reset: <select id="js-reset-day">
             <option value="1">1st</option>
@@ -153,17 +165,247 @@
         </p>
     </div>
 </div>
+<p class="text--right">
+<button id="js-settings-open" class="hidden">Settings</button>
+</p>
 
 <div id="js-days" class="days-wrapper"></div>
 
 <div id="js-status" class="status">
     <div class="limit">
+        <div id="js-date-intro"></div>
         <div id="js-summary" class="status__value"></div>
     </div>
 </div>
 
 <script>
 (function() {
+    'use strict';
+    class BudgetDay {
+        constructor() {
+
+        }
+    }
+
+    class Budget {
+        static initialData() {
+            return {
+                monthlyBudget: 0,
+                currencySymbol: '£',
+                resetDay : 1,
+                settingsOpen : true,
+                currentMonth : 0,
+                thisMonthData : [],
+                lastMonthData : []
+            }
+        };
+        static storageKey() {
+            return 'Hammerspace_Tools_Data_Budget';
+        }
+        constructor(changeCallback, currentDate) {
+            this.changeCallback = changeCallback;
+            this.currentDate = currentDate;
+            this.load();
+            this.dateCalculations();
+        }
+
+        dateCalculations() {
+            let currentMonth = this.currentDate.getMonth() + 1;
+            if (this.data.currentMonth !== currentMonth) {
+                // we've changed month. move the data into the right place
+                this.data.currentMonth = currentMonth;
+                this.data.lastMonthData = this.data.thisMonthData;
+                this.data.thisMonthData = [];
+                this.update();
+            }
+        }
+
+        getStatus(day) {
+            if (this.data.lastMonthData[day]) {
+                return this.data.lastMonthData[day];
+            }
+            return null;
+        }
+
+        update() {
+            this.save();
+            this.changeCallback(this);
+        }
+
+        setMonthlyBudget(newValue) {
+            this.data.monthlyBudget = newValue;
+            this.update();
+        }
+
+        getMonthlyBudget() {
+            return this.data.monthlyBudget;
+        }
+
+        setCurrencySymbol(symbol) {
+            this.data.currencySymbol = symbol;
+            this.update();
+        }
+
+        getCurrencySymbol() {
+            return this.data.currencySymbol;
+        }
+
+        setResetDay(day) {
+            this.data.resetDay = day;
+            this.update();
+        }
+
+        getResetDay() {
+            return this.data.resetDay;
+        }
+
+        settingsIsOpen() {
+            return this.data.settingsOpen;
+        }
+
+        closeSettings() {
+            const initial = this.data.settingsOpen;
+            this.data.settingsOpen = false;
+            if (initial) {
+                // we've closed for the first time, save it
+                this.update();
+            }
+        }
+
+        load() {
+            let data = localStorage.getItem(Budget.storageKey());
+            if (data) {
+                data = JSON.parse(data);
+            } else {
+                data = Budget.initialData();
+            }
+            this.data = data;
+            this.changeCallback(this);
+        }
+        save() {
+            localStorage.setItem(Budget.storageKey(), JSON.stringify(this.data));
+        }
+    }
+
+    class App {
+        constructor() {
+            this.el = {};
+            this.mapFields();
+            this.dateCalculations();
+            this.budget = new Budget(this.render.bind(this), this.date.currentDate);
+        }
+
+        dateCalculations() {
+            let currentDate = new Date();
+            this.date = {
+                currentDate : currentDate,
+                selectedDate : currentDate,
+                showLastMonth : false
+            }
+        };
+
+        mapFields() {
+            this.el.settingsPanel = document.getElementById('js-settings');
+            this.el.settingsOpen = document.getElementById('js-settings-open');
+            this.el.settingsClose = document.getElementById('js-settings-close');
+
+            this.el.settingsBudget = document.getElementById('js-budget');
+            this.el.settingsSymbol = document.getElementById('js-symbol');
+            this.el.settingsResetDay = document.getElementById('js-reset-day');
+
+            this.el.currencyButtons = document.querySelectorAll('[data-currency]');
+
+            this.el.dateIntro = document.getElementById('js-date-intro');
+            this.el.daysBar = document.getElementById('js-days');
+            this.addListeners();
+        }
+
+        addListeners() {
+            this.el.settingsBudget.addEventListener('change', e => {
+                this.budget.setMonthlyBudget(e.target.value);
+            });
+            this.el.settingsSymbol.addEventListener('change', e => {
+                this.budget.setCurrencySymbol(e.target.value);
+            });
+            this.el.settingsResetDay.addEventListener('change', e => {
+                this.budget.setResetDay(e.target.value);
+            });
+            this.el.currencyButtons.forEach(el => {
+                el.addEventListener('click', () => {
+                    this.el.settingsSymbol.value = el.dataset.currency;
+                    this.el.settingsSymbol.dispatchEvent(new Event('change'));
+                });
+            });
+
+            this.el.settingsClose.addEventListener('click', () => {
+                this.budget.closeSettings();
+                this.closeSettings();
+            });
+            this.el.settingsOpen.addEventListener('click', () => {
+                this.openSettings();
+            });
+
+            this.el.daysBar.addEventListener('click', (e) => {
+                let target = e.target;
+                if (target.classList.contains('js-day')) {
+                    this.switchDay(target.dataset.day);
+                    e.stopPropagation();
+                }
+            });
+        }
+
+        switchDay(newDay) {
+            let newDate = this.date.selectedDate;
+            newDate.setDate(newDay);
+            this.date.selectedDate = newDate;
+            this.render(this.budget);
+        }
+
+        openSettings() {
+            this.el.settingsOpen.classList.add('hidden');
+            this.el.settingsPanel.classList.remove('hidden');
+        }
+
+        closeSettings() {
+            this.el.settingsPanel.classList.add('hidden');
+            this.el.settingsOpen.classList.remove('hidden');
+        }
+
+        generateDaysBar(budget) {
+            let month = new Date(this.date.selectedDate.getFullYear(), this.date.selectedDate.getMonth()+1, 0),
+                daysInMonth = month.getDate(),
+                currentDay = this.date.selectedDate.getDate(),
+                dailyStatus = budget.getStatus(currentDay),
+                el = '';
+
+            for (let d = 1; d <= daysInMonth; d++) {
+                let s = (d == currentDay) ? 'days__day--selected' : '';
+                el += '<li class="days__item"><button class="button js-day days__day ' + s + '" data-day="' + d + '">' + d + '</button></li>';
+            }
+            this.el.daysBar.innerHTML = '<ul class="days">' + el + '</ul>';
+        }
+
+        render(budget) {
+            this.el.settingsBudget.value = budget.getMonthlyBudget();
+            this.el.settingsSymbol.value = budget.getCurrencySymbol();
+            this.el.settingsResetDay.value = budget.getResetDay();
+
+            if (budget.settingsIsOpen()) {
+                this.openSettings();
+            } else {
+                this.closeSettings();
+            }
+
+
+            this.generateDaysBar(budget);
+            this.el.dateIntro.innerHTML = this.date.selectedDate.getDate();
+        }
+    }
+
+    new App();
+
+/*
+ var daysInMonth = (month, year) => new Date(year, month, 0).getDate();
     var daysInMonth = function(month, year) {
         return new Date(year, month, 0).getDate();
     },
@@ -216,6 +458,8 @@
     daysBar.innerHTML = '<ul class="days">' + daysItems + '</ul>';
 
     statusValue.innerHTML = budgetLeftToday.toLocaleString('en', {currency:'GBP', style: 'currency'});
+*/
+
 
 })();
 </script>
